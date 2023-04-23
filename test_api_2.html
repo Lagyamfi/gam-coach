@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <script>
+        async function testApi() {
+            const apiUrl = "http://127.0.0.1:8000/generate_counterfactuals";
+            const inputData = {
+                data: ["female", "yes", "no", "no", 46, "yes", "yes", "fiber_optic", "no", "yes", "yes", "no", "yes", "yes", "month-to-month", "yes", "electronic_check", 104.45, 4863.85]
+            };
+
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(inputData)
+            });
+
+            if (response.ok) {
+                const jsonResponse = await response.json();
+                const counterfactuals = jsonResponse.counterfactuals;
+                const resultDiv = document.getElementById("result");
+                resultDiv.innerHTML = JSON.stringify(counterfactuals);
+                console.log(jsonResponse);
+            } else {
+                console.error("Error:", response.statusText);
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Test FastAPI Endpoint</h1>
+    <button onclick="testApi()">Test API</button>
+    <div id="result"></div>
+</body>
+</html>
