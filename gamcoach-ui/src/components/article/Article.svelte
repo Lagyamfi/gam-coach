@@ -44,8 +44,9 @@
   import samplesCompas from '../../config/data/compas-classifier-random-samples.json';
   import samplesCrime from '../../config/data/crime-classifier-random-samples.json';
   import samplesCrimeFull from '../../config/data/crime-full-classifier-random-samples.json';
+  import samplesCustomer from '../../config/data/customer-classifier-random-samples.json';
 
-  export let modelName = 'lc';
+  export let modelName = 'customer';
 
   let curSamples = samplesLC;
   let curIndex = 126;
@@ -59,7 +60,8 @@
     { name: 'adult', display: 'Adult Census Income' },
     { name: 'german', display: 'German Credit' },
     { name: 'compas', display: 'COMPAS' },
-    { name: 'credit', display: 'Credit' }
+    { name: 'credit', display: 'Credit' },
+    { name: 'customer', display: "Customer Churn" },
   ];
 
   const initModelInfo = () => {
@@ -98,6 +100,11 @@
         curSamples = samplesCrime;
         // curIndex = 165;
         curIndex = 368;
+        break;
+      }
+      case 'customer': {
+        curSamples = samplesCustomer;
+        curIndex = curIndex;
         break;
       }
       default: {
@@ -139,7 +146,8 @@
     'german',
     'compas',
     'crime',
-    'crime-full'
+    'crime-full',
+    'customer',
   ]);
   if (urlModelName !== null && validModelNames.has(urlModelName)) {
     modelName = urlModelName;
@@ -209,11 +217,29 @@
     })
   );
 
-  const refreshClicked = () => {
+  async function getExample(idx) {
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/dataset/${idx}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    throw error;
+  }
+}
+
+  const refreshClicked = async () => {
     // Resample the cur example
     curIndex = random(0, curSamples.length - 1);
-    const newExample = curSamples[curIndex];
-
+    // const newExample = curSamples[curIndex];
+    // fetch newExample from python wep server
+    const newExample = await getExample(curIndex);
+    console.log(newExample);
     updated = false;
     curExample = newExample;
 
@@ -407,7 +433,7 @@
     {/key}
   </div>
 
-  <div class="article appeal-article">
+  <!-- <div class="article appeal-article">
     <h2 id="tool">What is <span class="teal">GAM Coach</span>?</h2>
     {#each text.tool.pre as p}
       <p>{@html p}</p>
@@ -745,7 +771,7 @@
         {/if}
       </div>
     </div>
-  </div>
+  </div> -->
 
   <div class="article-footer">
     <div class="footer-main">

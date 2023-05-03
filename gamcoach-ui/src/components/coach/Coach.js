@@ -394,6 +394,35 @@ export class Constraints {
   }
 }
 
+const numCFs = 5;
+
+async function fetchCounterfactualsFromWebService(curExample, numCFs) {
+  try {
+    const response = await fetch("http://127.0.0.1:8000/generate_counterfactuals"); 
+    // {
+    //   method: "POST",
+    //   headers: {
+    //     "Content-Type": "application/json"
+    //   },
+    //   body: JSON.stringify({
+    //     inputData: curExample,
+    //       numCFs: numCFs,
+    //     }),
+    // });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const cfs = await response.json();
+    return cfs;
+  } catch (error) {
+    console.error("Error fetching counterfactual data:", error);
+    return null;
+  }
+}
+
+
 /**
  * Iteratively populate the plans.
  * @param {object} modelData The loaded model data
@@ -474,21 +503,25 @@ export const initPlans = async (
   );
 
   console.time(`Plan ${tempPlans.nextPlanIndex} generated`);
-  let cfs = await coach.generateCfs({
-    curExample: exampleBatch,
-    totalCfs: 1,
-    continuousIntegerFeatures: plans.continuousIntegerFeatures,
-    featuresToVary: constraints.featuresToVary,
-    featureRanges: constraints.featureRanges,
-    featureWeightMultipliers: constraints.featureWeightMultipliers,
-    verbose: 0,
-    maxNumFeaturesToVary: constraints.maxNumFeaturesToVary
-  });
-  console.log(cfs);
+  // let cfs = await coach.generateCfs({
+  //   curExample: exampleBatch,
+  //   totalCfs: 1,
+  //   continuousIntegerFeatures: plans.continuousIntegerFeatures,
+  //   featuresToVary: constraints.featuresToVary,
+  //   featureRanges: constraints.featureRanges,
+  //   featureWeightMultipliers: constraints.featureWeightMultipliers,
+  //   verbose: 0,
+  //   maxNumFeaturesToVary: constraints.maxNumFeaturesToVary
+  // });
+  // console.log("exampleBatch", exampleBatch);
+  let cfs = await fetchCounterfactualsFromWebService();
+  //console.log("cfs", cfs);
+  //console.log("cfs2", cfs2);
   console.timeEnd(`Plan ${tempPlans.nextPlanIndex} generated`);
 
   // If the plan only uses one feature, we store it to a set and avoid future
   // plans that only uses that feature
+  // console.log(cfs.activeVariables[0].length);
   if (cfs.isSuccessful && cfs.activeVariables[0].length === 1) {
     const curFeature = cfs.activeVariables[0][0].replace(/(.*):.*/g, '$1');
     singleFeatures.add(curFeature);
@@ -551,6 +584,7 @@ export const initPlans = async (
     return;
   }
 
+
   // Generate other plans
   const totalPlanNum = 5;
   for (let i = 1; i < totalPlanNum; i++) {
@@ -560,7 +594,9 @@ export const initPlans = async (
 
     // Run gam coach
     console.time(`Plan ${tempPlans.nextPlanIndex + i} generated`);
-    cfs = await coach.generateSubCfs(cfs.nextCfConfig);
+    //cfs = await coach.generateSubCfs(cfs.nextCfConfig);
+    cfs = await fetchCounterfactualsFromWebService();
+    // console.log("cfs", cfs);
     console.timeEnd(`Plan ${tempPlans.nextPlanIndex + i} generated`);
 
     // If the new plan uses only one feature, we mute it and repeat again

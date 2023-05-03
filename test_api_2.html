@@ -19,21 +19,64 @@
                 body: JSON.stringify(inputData)
             });
 
+            cfs = await response.json();
+            if(cfs) {
+                console.log("Response:", cfs);
+
+            // Access the individual components of the counterfactual data
+            const activeVariables = cfs.activeVariables[0];
+            const data = cfs.data[0];
+            const isSuccessful = cfs.isSuccessful;
+
+            // Perform further processing as required
+            console.log("Active Variables:", activeVariables);
+            console.log("Data:", data);
+            console.log("Is Successful:", isSuccessful);
+
+            }
+
             if (response.ok) {
-                const jsonResponse = await response.json();
-                const counterfactuals = jsonResponse.counterfactuals;
+                //const jsonResponse = await response.json();
+                const counterfactuals = cfs.data;
                 const resultDiv = document.getElementById("result");
                 resultDiv.innerHTML = JSON.stringify(counterfactuals);
-                console.log(jsonResponse);
+                console.log(cfs);
             } else {
                 console.error("Error:", response.statusText);
             }
         }
+
+        async function fetchCounterfactualsFromWebService() {
+        try {
+            const response = await fetch("http://127.0.0.1:8000/generate_counterfactuals");
+
+            if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const cfs = await response.json();
+            const counterfactuals = cfs.data;
+            const resultDiv = document.getElementById("result");
+            resultDiv.innerHTML = JSON.stringify(counterfactuals);
+            console.log(cfs);
+            return cfs;
+        } catch (error) {
+            console.error("Error fetching counterfactual data:", error);
+            return null;
+        }
+        }
+
+
+
+
     </script>
 </head>
 <body>
     <h1>Test FastAPI Endpoint</h1>
     <button onclick="testApi()">Test API</button>
+    <div id="result"></div>
+    <br>
+    <button onclick="fetchCounterfactualsFromWebService()">Test API - GET </button>
     <div id="result"></div>
 </body>
 </html>
