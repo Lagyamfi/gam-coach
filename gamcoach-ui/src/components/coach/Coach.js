@@ -484,6 +484,7 @@ export const initPlans = async (
     verbose: 0,
     maxNumFeaturesToVary: constraints.maxNumFeaturesToVary
   });
+  console.log(cfs);
   console.timeEnd(`Plan ${tempPlans.nextPlanIndex} generated`);
 
   // If the plan only uses one feature, we store it to a set and avoid future
