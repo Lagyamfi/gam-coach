@@ -396,19 +396,15 @@ export class Constraints {
 
 const numCFs = 5;
 
-async function fetchCounterfactualsFromWebService(curExample, numCFs) {
+async function fetchCounterfactualsFromWebService(data) {
   try {
-    const response = await fetch("http://127.0.0.1:8000/generate_counterfactuals"); 
-    // {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json"
-    //   },
-    //   body: JSON.stringify({
-    //     inputData: curExample,
-    //       numCFs: numCFs,
-    //     }),
-    // });
+    const response = await fetch("http://127.0.0.1:8000/generate_counterfactuals", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -514,18 +510,31 @@ export const initPlans = async (
   //   maxNumFeaturesToVary: constraints.maxNumFeaturesToVary
   // });
   // console.log("exampleBatch", exampleBatch);
-  let cfs = await fetchCounterfactualsFromWebService();
-  //console.log("cfs", cfs);
+  const requestData = {
+    curExample: exampleBatch,
+    totalCfs: 1,
+    continuousIntegerFeatures: plans.continuousIntegerFeatures,
+    featuresToVary: constraints.featuresToVary,
+    featureRanges: constraints.featureRanges,
+    featureWeightMultipliers: constraints.featureWeightMultipliers,
+    verbose: 0,
+    maxNumFeaturesToVary: constraints.maxNumFeaturesToVary,
+    isNew: true,
+  };
+  console.log("requestData", requestData);
+  let cfs = await fetchCounterfactualsFromWebService(requestData);
+  console.log("cfs", cfs);
   //console.log("cfs2", cfs2);
+  //console.log(plans);
   console.timeEnd(`Plan ${tempPlans.nextPlanIndex} generated`);
 
   // If the plan only uses one feature, we store it to a set and avoid future
   // plans that only uses that feature
-  // console.log(cfs.activeVariables[0].length);
   if (cfs.isSuccessful && cfs.activeVariables[0].length === 1) {
     const curFeature = cfs.activeVariables[0][0].replace(/(.*):.*/g, '$1');
     singleFeatures.add(curFeature);
   }
+  //requestData.mutedVariables = Array.from(singleFeatures);
 
   let curPlan;
   let curPlanStore;
@@ -587,6 +596,10 @@ export const initPlans = async (
 
   // Generate other plans
   const totalPlanNum = 5;
+  requestData.isNew = false;
+  let cfs_new = await fetchCounterfactualsFromWebService(requestData);
+  //onsole.log("cfs_new", cfs_new);
+
   for (let i = 1; i < totalPlanNum; i++) {
     if (!cfs.isSuccessful) {
       break;
@@ -595,8 +608,8 @@ export const initPlans = async (
     // Run gam coach
     console.time(`Plan ${tempPlans.nextPlanIndex + i} generated`);
     //cfs = await coach.generateSubCfs(cfs.nextCfConfig);
-    cfs = await fetchCounterfactualsFromWebService();
-    // console.log("cfs", cfs);
+    cfs = cfs_new[i];
+    console.log("cfs", cfs);
     console.timeEnd(`Plan ${tempPlans.nextPlanIndex + i} generated`);
 
     // If the new plan uses only one feature, we mute it and repeat again
@@ -609,6 +622,7 @@ export const initPlans = async (
         singleFeatures.add(curFeature);
       }
     }
+    //requestData.mutedFeatures = Array.from(singleFeatures);
 
     if (cfs.isSuccessful) {
       // Get the plan object
@@ -619,6 +633,7 @@ export const initPlans = async (
         cfs.isSuccessful ? cfs.data[0] : curExample,
         tempPlans.nextPlanIndex + i
       );
+      console.log("curPlan", curPlan);
       curPlanStore = writable(curPlan);
       plans.planStores.set(tempPlans.nextPlanIndex + i, curPlanStore);
       plansUpdated(plans);
@@ -696,9 +711,10 @@ export const regeneratePlans = async (
     `plan${plans.nextPlanIndex}Constraint`,
     constraints.getCleanCopy()
   );
+  // console.log(constraints);
 
   console.time(`Plan ${plans.nextPlanIndex} generated`);
-  let cfs = await coach.generateCfs({
+  const requestData = {
     curExample: exampleBatch,
     totalCfs: 1,
     continuousIntegerFeatures: plans.continuousIntegerFeatures,
@@ -706,8 +722,23 @@ export const regeneratePlans = async (
     featureRanges: constraints.featureRanges,
     featureWeightMultipliers: constraints.featureWeightMultipliers,
     verbose: 0,
-    maxNumFeaturesToVary: constraints.maxNumFeaturesToVary
-  });
+    maxNumFeaturesToVary: constraints.maxNumFeaturesToVary,
+    isNew: true,
+  };
+  // let cfs = await coach.generateCfs({
+  //   curExample: exampleBatch,
+  //   totalCfs: 1,
+  //   continuousIntegerFeatures: plans.continuousIntegerFeatures,
+  //   featuresToVary: constraints.featuresToVary,
+  //   featureRanges: constraints.featureRanges,
+  //   featureWeightMultipliers: constraints.featureWeightMultipliers,
+  //   verbose: 0,
+  //   maxNumFeaturesToVary: constraints.maxNumFeaturesToVary,
+  //   isNew: true,
+  // });
+  // console.log("requestData", requestData);
+  let cfs = await fetchCounterfactualsFromWebService(requestData);
+  // console.log(cfs);
   console.timeEnd(`Plan ${plans.nextPlanIndex} generated`);
 
   // If the plan only uses one feature, we store it to a set and avoid future
@@ -740,6 +771,7 @@ export const regeneratePlans = async (
     plansUpdated(plans);
 
     // Log the current plan
+    //console.log(plans);
     logger?.addRecord(`plan${plans.nextPlanIndex}`, curPlan.getCleanPlanCopy());
   }
 
@@ -772,6 +804,9 @@ export const regeneratePlans = async (
 
   // Generate other plans
   const totalPlanNum = 5;
+  requestData.isNew = false;
+  let cfs_new = await fetchCounterfactualsFromWebService(requestData);
+
   for (let i = 1; i < totalPlanNum; i++) {
     if (!cfs.isSuccessful) {
       break;
@@ -779,7 +814,9 @@ export const regeneratePlans = async (
 
     // Run gam coach
     console.time(`Plan ${plans.nextPlanIndex + i} generated`);
-    cfs = await coach.generateSubCfs(cfs.nextCfConfig);
+    console.log(constraints);
+    // cfs = await coach.generateSubCfs(cfs.nextCfConfig);
+    cfs = cfs_new[i];
     console.timeEnd(`Plan ${plans.nextPlanIndex + i} generated`);
 
     // If the new plan uses only one feature, we mute it and repeat again
@@ -792,6 +829,7 @@ export const regeneratePlans = async (
         singleFeatures.add(curFeature);
       }
     }
+    console.log(singleFeatures);
 
     if (cfs.isSuccessful) {
       // Get the plan object

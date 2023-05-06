@@ -1,11 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Union, List
+from typing import List, Dict, Any, Union
 import pickle
 import pandas as pd
 import numpy as np
 import json
+import copy
+
+import dice_ml
+import gamcoach
 
 app = FastAPI()
 
@@ -26,21 +30,38 @@ app.add_middleware(
 with open('./my_coach.pickle', 'rb') as f:
     mynew_coach = pickle.load(f)
 
+with open('./dice-model-customer.pickle', 'rb') as f:
+    dice_model = pickle.load(f)
+
 # Load the dataset
 with open("customer-classifier-random-samples.json") as f:
     dataset = json.load(f)
 
 # column names from the dataset
 COLUMNS = mynew_coach.feature_names[:19]
+TARGET = "churn"
 
-class cf_response:
+class CFResponse:
     def __init__(self, cf):
-        self.data = cf.data
-        active_variables = [a_var for a_var, _ in cf.solutions]
-        # for each sublist in main list,  keep sublist with only items  without '_x_' in name
-        self.active_variables = [[str(item) for item in sublist if '_x_' not in item.name] for sublist in active_variables]
+        # check if cf is dice or coach
+        self.process_counterfactuals(cf)
+    
+    
+    def process_counterfactuals(self, cf):
+        if isinstance(cf, gamcoach.Counterfactuals):
+            self.data = cf.data
+            active_variables = [a_var for a_var, _ in cf.solutions]
+            # for each sublist in main list,  keep sublist with only items  without '_x_' in name
+            self.active_variables = [[str(item) for item in sublist if '_x_' not in item.name]
+                                      for sublist in active_variables]
 
-        self.is_successful = True if len(self.active_variables) > 0 else False
+            self.is_successful = True if len(self.active_variables) > 0 else False
+
+        elif isinstance(cf, dice_ml.counterfactual_explanations.CounterfactualExplanations):
+            self.data = cf.cf_examples_list[0].final_cfs_df.drop(TARGET, axis=1).values
+            self.active_variables = get_active_vars(cf)
+            self.is_successful = True if len(self.data) > 0 else False
+
 
     def get_response(self):
         serialized_data = {
@@ -48,97 +69,109 @@ class cf_response:
             'activeVariables': list(self.active_variables),
             'isSuccessful': self.is_successful
         }
+        if len(self.data) > 1:
+            serialized_data = [
+            {
+                'activeVariables': active_vars,
+                'data': [data_item],
+                'isSuccessful': serialized_data['isSuccessful']
+            }
+            for active_vars, data_item in zip(serialized_data['activeVariables'], serialized_data['data'])
+        ]
         return serialized_data
 
 
-def generate_counterfactuals(input_data, explainer=mynew_coach):
+def get_active_vars(exp):
+    li = exp.cf_examples_list[0].final_cfs_df.drop(columns=['churn']).values
+    newli = copy.deepcopy(li)
+    org = exp.cf_examples_list[0].test_instance_df.drop(columns=['churn']).values.tolist()[0]
+    combined = []
+    columns = exp.cf_examples_list[0].final_cfs_df.columns
+    for ix in range(len(newli)):
+        active_vars = []
+        for jx in range(len(newli[ix])):
+            if newli[ix][jx] != org[jx]:
+                active_vars.append(f"{columns[jx]}:{newli[ix][jx]}")
+        combined.append(active_vars)
+    return combined
+
+def generate_counterfactuals(
+        input_data, 
+        total_CFs,
+        continuous_integer_features,
+        max_num_features_to_vary,
+        features_to_vary, 
+        explainer="coach"
+        ):
     columns = COLUMNS
     if not isinstance(input_data, pd.DataFrame):
-        # input_data = pd.DataFrame.from_dict([input_data], orient='columns')
-        input_data = pd.DataFrame([input_data], columns=columns)
-    cfs = explainer.generate_cfs(
-        input_data.values,
-        total_cfs=1,
-        max_num_features_to_vary=np.random.randint(1, 3),
-        continuous_integer_features=['tenure', ]
-    )
+        input_data = pd.DataFrame(
+            [input_data], 
+            columns=columns, 
+            )
+        input_data[['monthlycharges', 'totalcharges']] = input_data[['monthlycharges', 'totalcharges']].astype(float)
+    if explainer == "coach":
+        explainer = mynew_coach
+        cfs = explainer.generate_cfs(
+            cur_example = input_data.values,
+            total_cfs=total_CFs,
+            max_num_features_to_vary=max_num_features_to_vary,
+            continuous_integer_features=continuous_integer_features,
+        )
+    elif explainer == "dice":
+        if features_to_vary is None:
+            features_to_vary = 'all'
+        explainer = dice_model
+        cfs = explainer.generate_counterfactuals(
+            query_instances = input_data,
+            total_CFs=total_CFs,
+            desired_class="opposite",
+            features_to_vary=features_to_vary,
+            posthoc_sparsity_algorithm='binary',
+        )
     return cfs
 
 
-test_cf = {
-  "activeVariables": [["internetservice:0", "monthlycharges:210"]],
-  "data": [["female", "no", "no", "no", 29, "yes", "yes", "dsl", "no", "no", "yes", "no", "yes", "yes", "month-to-month", "no", "bank_transfer_(automatic)", 97.82489999999999, 2878.75]],
-  "isSuccessful": True
-}
+class RequestData(BaseModel):
+    curExample: List[List[Union[str, int, float]]]
+    totalCfs: int
+    continuousIntegerFeatures: List[int]
+    featuresToVary: Any  # Null (None) value is expected
+    featureRanges: Dict[str, List[float]]
+    featureWeightMultipliers: Dict[str, float]
+    verbose: int
+    maxNumFeaturesToVary: int
+    isNew: Any  # Null (None) value is expected
 
-class InputDataDict(BaseModel):
-    gender: str
-    seniorcitizen: str
-    partner: str
-    dependents: str
-    tenure: int
-    phoneservice: str
-    multiplelines: str
-    internetservice: str
-    onlinesecurity: str
-    onlinebackup: str
-    deviceprotection: str
-    techsupport: str
-    streamingtv: str
-    streamingmovies: str
-    contract: str
-    paperlessbilling: str
-    paymentmethod: str
-    monthlycharges: float
-    totalcharges: Union[float, str]
 
-class InputData(BaseModel):
-    inputData: list
-    numCounterfactuals: int
+@app.post("/generate_counterfactuals")
+async def generate_counterfactuals_endpoint(data: RequestData):
+    # Access the data from the request
+    print(data)
+    cur_example = data.curExample[0]
+    total_cfs = data.totalCfs
+    continuous_integer_features = data.continuousIntegerFeatures
+    features_to_vary = data.featuresToVary
+    feature_ranges = data.featureRanges
+    feature_weight_multipliers = data.featureWeightMultipliers
+    verbose = data.verbose
+    max_num_features_to_vary = data.maxNumFeaturesToVary
+    new_cf = data.isNew
+    
+    if new_cf:
+        total_cfs = 1
+    else:
+        total_cfs = 5
 
-# @app.post("/generate_counterfactuals")
-# async def generate_counterfactuals_endpoint(input_data: InputData):
-#     print(input_data.data)
-#     # counterfactuals = generate_counterfactuals(input_data.dict())
-#     #counterfactuals = generate_counterfactuals(input_data.data)
-#     #return {"counterfactuals": counterfactuals}
-
-#     serialized_data = {
-#         "activeVariables": [["internetservice:0", "monthlycharges:210"]] * input_data.numCounterfactuals,
-#         "data": [
-#             [
-#                 "female",
-#                 "no",
-#                 "no",
-#                 "no",
-#                 29,
-#                 "yes",
-#                 "yes",
-#                 "dsl",
-#                 "no",
-#                 "no",
-#                 "yes",
-#                 "no",
-#                 "yes",
-#                 "yes",
-#                 "month-to-month",
-#                 "no",
-#                 "bank_transfer_(automatic)",
-#                 97.82489999999999,
-#                 2878.75,
-#             ]
-#             for _ in range(input_data.numCounterfactuals)
-#         ],
-#         "isSuccessful": True,
-#     }
-#     return serialized_data
-
-@app.get("/generate_counterfactuals")
-async def generate_counterfactuals_endpoint():
-    counterfactuals = generate_counterfactuals(dataset[0])
-    response = cf_response(counterfactuals).get_response()
+    counterfactuals = generate_counterfactuals(
+        cur_example, 
+        total_cfs,
+        continuous_integer_features,
+        max_num_features_to_vary,
+        features_to_vary,
+        explainer="dice")
+    response = CFResponse(counterfactuals).get_response()
     return response
-
 
 @app.get("/dataset/{idx}")
 async def get_example(idx: int):

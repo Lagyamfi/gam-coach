@@ -16,7 +16,10 @@
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify(inputData)
+                body: JSON.stringify({
+                    inputData: inputData,
+                    numCFs : 5,
+                }),
             });
 
             cfs = await response.json();

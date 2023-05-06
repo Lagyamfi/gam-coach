@@ -169,7 +169,10 @@
   const logger = null;
 
   // curIndex = random(0, curSamples.length - 1);
-  let curExample = curSamples[curIndex];
+  let curExample;
+  getExample(curIndex).then((data) => {
+    curExample = data;
+  });
 
   const pointArrowSVGProcessed = pointArrowSVG.replaceAll(
     'white',
@@ -217,6 +220,9 @@
     })
   );
 
+  /**
+   * @param {number} idx
+   */
   async function getExample(idx) {
   try {
     const response = await fetch(`http://127.0.0.1:8000/dataset/${idx}`);
