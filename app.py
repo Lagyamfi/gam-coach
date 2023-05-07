@@ -100,7 +100,8 @@ def generate_counterfactuals(
         total_CFs,
         continuous_integer_features,
         max_num_features_to_vary,
-        features_to_vary, 
+        features_to_vary,
+        feature_ranges, 
         explainer="coach"
         ):
     columns = COLUMNS
@@ -127,6 +128,7 @@ def generate_counterfactuals(
             total_CFs=total_CFs,
             desired_class="opposite",
             features_to_vary=features_to_vary,
+            permitted_range=feature_ranges,
             posthoc_sparsity_algorithm='binary',
         )
     return cfs
@@ -137,7 +139,7 @@ class RequestData(BaseModel):
     totalCfs: int
     continuousIntegerFeatures: List[int]
     featuresToVary: Any  # Null (None) value is expected
-    featureRanges: Dict[str, List[float]]
+    featureRanges: Dict[str, List[Any]]
     featureWeightMultipliers: Dict[str, float]
     verbose: int
     maxNumFeaturesToVary: int
@@ -169,6 +171,7 @@ async def generate_counterfactuals_endpoint(data: RequestData):
         continuous_integer_features,
         max_num_features_to_vary,
         features_to_vary,
+        feature_ranges,
         explainer="dice")
     response = CFResponse(counterfactuals).get_response()
     return response
