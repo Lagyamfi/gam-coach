@@ -35,6 +35,8 @@
   /** @type {Logger} */
   export let logger = null;
 
+  export let cfMethod = 'coach';
+
   let initialized = false;
   const unsubscribes = [];
 
@@ -103,6 +105,7 @@
     // Creating the constraints object can change the modelData (setting
     // the acceptance range based on the curExample)
     constraints = new Constraints(curModelData, curExample);
+    constraints.cfMethod = cfMethod;
 
     constraintsStore.set(constraints);
     unsubscribes.push(

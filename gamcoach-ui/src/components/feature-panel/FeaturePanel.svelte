@@ -8,7 +8,6 @@
   import { Logger } from '../../utils/logger';
   import { bindInlineSVG } from '../../utils/utils';
   import '../../typedef';
-  import { EBMLocal } from '../../ebm/ebmLocal';
   import { Plan, Constraints } from '../coach/Coach';
 
   import { onMount, onDestroy, tick } from 'svelte';

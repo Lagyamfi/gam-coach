@@ -143,46 +143,6 @@ $header-color: currentcolor;
   font-weight: 600;
 }
 
-.paper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  margin-top: 30px;
-}
-
-.paper-image {
-  height: 100%;
-  border-radius: 5px;
-  border: 2px solid hsla(0, 0%, 90%, 1);
-  margin-right: 15px;
-
-  img {
-    height: 110px;
-  }
-
-  &:hover {
-    box-shadow: 2px 2px 3px hsla(0, 0%, 0%, 0.1);
-  }
-}
-
-.paper-info__title {
-  font-weight: 500;
-
-  a {
-    color: #444;
-  }
-}
-
-.paper-info {
-  display: flex;
-  flex-direction: column;
-
-  a {
-    color: #444;
-  }
-}
-
 .important-note {
   border-left: 0.2rem solid $teal-600;
   border-radius: 0.2rem;

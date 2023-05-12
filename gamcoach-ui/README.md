@@ -60,43 +60,6 @@ npm run dev
 
 Navigate to [localhost:5005](https://localhost:5005). You should see GAM Coach running in your browser :)
 
-## Use the Python Library
-
-You can also use GAM Coach as a Python library to generate customizable counterfactual examples for generalized additive models (GAMs). You can install GAM Coach through `pip`.
-
-Then, you only need one function call to generate customizable counterfactual examples for your GAM models!
-
-```python
-import gamcoach as coach
-
-# First create a GAM Coach object
-# It requires to provide the training data, so it can generate better CFs based
-# on the data distribution
-my_coach = coach.GAMCoach(ebm, x_train)
-
-cfs = my_coach.generate_cfs(
-    cur_example,
-    total_cfs=3,
-    # List of features that the CFs can change
-    features_to_vary=['loan_amnt', 'term', 'emp_length', 'home_ownership',
-                      'annual_inc', 'purpose', 'dti', 'open_acc', 'revol_bal',
-                      'revol_util', 'total_acc', 'application_type', 'mort_acc',
-                      'fico_score'],
-    # Some continuous features need to have integer values in practice
-    continuous_integer_features=['open_acc', 'total_acc', 'mort_acc', 'fico_score']
-)
-```
-
-For more details and examples, read our [documentation](https://poloclub.github.io/gam-coach/docs/gamcoach).
-
-```bash
-pip install gamcoach
-```
-
-## Set Up Your Own GAM Coach
-
-In the [demo page](https://poloclub.github.io/gam-coach), we provide five demos with the most commonly used datasets in the algorithmic recourse literature. You can easily set up a GAM Coach for your own GAM model (with only one function call). See this [documentation page](https://poloclub.github.io/gam-coach/docs/gamcoach/gamcoach.html#get_model_data) for details.
-
 ## Credits
 
 GAM Coach is a result of a collaboration between ML and visualization researchers from Georgia Tech and Microsoft Research.

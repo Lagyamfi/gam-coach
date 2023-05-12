@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Type
 import pickle
 import pandas as pd
 import numpy as np
@@ -26,6 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# create aliases for the long class names
+GamCoachCF = gamcoach.Counterfactuals
+DiceMLCF = dice_ml.counterfactual_explanations.CounterfactualExplanations
+
+
 # load my coach
 with open('./my_coach.pickle', 'rb') as f:
     mynew_coach = pickle.load(f)
@@ -42,13 +48,13 @@ COLUMNS = mynew_coach.feature_names[:19]
 TARGET = "churn"
 
 class CFResponse:
-    def __init__(self, cf):
+    def __init__(self, cf: Union[GamCoachCF, DiceMLCF]):
         # check if cf is dice or coach
         self.process_counterfactuals(cf)
     
     
-    def process_counterfactuals(self, cf):
-        if isinstance(cf, gamcoach.Counterfactuals):
+    def process_counterfactuals(self, cf: Union[GamCoachCF, DiceMLCF]):
+        if isinstance(cf, GamCoachCF):
             self.data = cf.data
             active_variables = [a_var for a_var, _ in cf.solutions]
             # for each sublist in main list,  keep sublist with only items  without '_x_' in name
@@ -57,7 +63,7 @@ class CFResponse:
 
             self.is_successful = True if len(self.active_variables) > 0 else False
 
-        elif isinstance(cf, dice_ml.counterfactual_explanations.CounterfactualExplanations):
+        elif isinstance(cf, DiceMLCF):
             self.data = cf.cf_examples_list[0].final_cfs_df.drop(TARGET, axis=1).values
             self.active_variables = get_active_vars(cf)
             self.is_successful = True if len(self.data) > 0 else False
@@ -101,7 +107,7 @@ def generate_counterfactuals(
         continuous_integer_features,
         max_num_features_to_vary,
         features_to_vary,
-        feature_ranges, 
+        feature_ranges,
         explainer="coach"
         ):
     columns = COLUMNS
@@ -110,12 +116,14 @@ def generate_counterfactuals(
             [input_data], 
             columns=columns, 
             )
-        input_data[['monthlycharges', 'totalcharges']] = input_data[['monthlycharges', 'totalcharges']].astype(float)
+        input_data[['tenure','monthlycharges', 'totalcharges']] = input_data[['tenure', 'monthlycharges', 'totalcharges']].astype(float)
     if explainer == "coach":
         explainer = mynew_coach
         cfs = explainer.generate_cfs(
             cur_example = input_data.values,
             total_cfs=total_CFs,
+            feature_ranges=feature_ranges,
+            features_to_vary=features_to_vary,
             max_num_features_to_vary=max_num_features_to_vary,
             continuous_integer_features=continuous_integer_features,
         )
@@ -136,8 +144,9 @@ def generate_counterfactuals(
 
 class RequestData(BaseModel):
     curExample: List[List[Union[str, int, float]]]
+    cfMethod: str
     totalCfs: int
-    continuousIntegerFeatures: List[int]
+    continuousIntegerFeatures: List[Any]
     featuresToVary: Any  # Null (None) value is expected
     featureRanges: Dict[str, List[Any]]
     featureWeightMultipliers: Dict[str, float]
@@ -146,33 +155,20 @@ class RequestData(BaseModel):
     isNew: Any  # Null (None) value is expected
 
 
+
 @app.post("/generate_counterfactuals")
 async def generate_counterfactuals_endpoint(data: RequestData):
-    # Access the data from the request
     print(data)
-    cur_example = data.curExample[0]
-    total_cfs = data.totalCfs
-    continuous_integer_features = data.continuousIntegerFeatures
-    features_to_vary = data.featuresToVary
-    feature_ranges = data.featureRanges
-    feature_weight_multipliers = data.featureWeightMultipliers
-    verbose = data.verbose
-    max_num_features_to_vary = data.maxNumFeaturesToVary
-    new_cf = data.isNew
-    
-    if new_cf:
-        total_cfs = 1
-    else:
-        total_cfs = 5
+    total_cfs = 1 if data.isNew else 5
 
     counterfactuals = generate_counterfactuals(
-        cur_example, 
+        data.curExample[0], 
         total_cfs,
-        continuous_integer_features,
-        max_num_features_to_vary,
-        features_to_vary,
-        feature_ranges,
-        explainer="dice")
+        data.continuousIntegerFeatures,
+        data.maxNumFeaturesToVary,
+        data.featuresToVary,
+        data.featureRanges,
+        explainer=data.cfMethod)
     response = CFResponse(counterfactuals).get_response()
     return response
 

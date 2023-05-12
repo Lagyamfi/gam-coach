@@ -273,6 +273,9 @@ export class Constraints {
   /** @type {number | null} */
   maxNumFeaturesToVary = 4;
 
+  /** add cf method */
+  cfMethod = 'dice';
+
   /**
    * Initialize the Constraints object. It might modify the modelData as some
    * features only allow increasing/decreasing features. The initializer would
@@ -392,6 +395,15 @@ export class Constraints {
       maxNumFeaturesToVary: this.maxNumFeaturesToVary
     };
   }
+
+  /**
+   * get cf method
+   * @returns {string} cf method
+   * */
+  getCFMethod() {
+    return this.cfMethod;
+  }
+
 }
 
 const numCFs = 5;
@@ -512,6 +524,7 @@ export const initPlans = async (
   // console.log("exampleBatch", exampleBatch);
   const requestData = {
     curExample: exampleBatch,
+    cfMethod: constraints.getCFMethod(),
     totalCfs: 1,
     continuousIntegerFeatures: plans.continuousIntegerFeatures,
     featuresToVary: constraints.featuresToVary,
@@ -521,9 +534,9 @@ export const initPlans = async (
     maxNumFeaturesToVary: constraints.maxNumFeaturesToVary,
     isNew: true,
   };
-  // console.log("requestData", requestData);
+  console.log("requestData", requestData);
   let cfs = await fetchCounterfactualsFromWebService(requestData);
-  // console.log("cfs", cfs);
+  //console.log("cfs", cfs);
   //console.log(plans);
   console.timeEnd(`Plan ${tempPlans.nextPlanIndex} generated`);
 
@@ -715,6 +728,7 @@ export const regeneratePlans = async (
   console.time(`Plan ${plans.nextPlanIndex} generated`);
   const requestData = {
     curExample: exampleBatch,
+    cfMethod: constraints.getCFMethod(),
     totalCfs: 1,
     continuousIntegerFeatures: plans.continuousIntegerFeatures,
     featuresToVary: constraints.featuresToVary,
